@@ -9,24 +9,18 @@ package:
     - maybe
 
   test:
-    main: Test.Main
+    main: Test.Runner
     dependencies:
       - assert
       - console
-      - effect
-      - exceptions
-      - partial
-      - st
-      - minibench
-      - arrays
-      - either
       - foldable-traversable
-      - maybe
       - prelude
       - refs
-      - tailrec
 
 workspace:
+  backend:
+    cmd: ../purust/bin/purust
+    args: [--main, Test.Runner, --source, output, --out, output/purust_output, --threaded]
   packageSet:
     registry: 77.7.0
   extraPackages:

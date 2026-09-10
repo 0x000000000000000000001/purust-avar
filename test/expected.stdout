@@ -1,0 +1,24 @@
+[OK] tryRead/full
+[OK] tryRead/empty
+[OK] tryPut/full
+[OK] tryPut/empty
+[OK] tryTake/full
+[OK] tryTake/empty
+[OK] put/take
+[OK] put/read/take
+[OK] take/put
+[OK] take/read/put
+[OK] read/put/take
+[OK] read/take/put
+[OK] kill/full
+[OK] kill/empty
+[OK] kill/pending
+[OK] cancel
+[OK] status transitions and first kill wins
+[OK] FIFO takes and read broadcast before take and put callbacks
+[OK] FIFO puts refill after each take
+[OK] callbacks can read, cancel another waiter and enqueue a take
+[OK] cancellation is idempotent before and after completion
+[OK] kill rejects queued puts and every future callback
+[OK] callback failure does not strand waiters or poison the AVar
+[OK] replay creates independent AVars and independent subscriptions

@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+CLEAN=0
+for arg in "$@"; do
+  case "$arg" in
+    -c|--clean) CLEAN=1 ;;
+    *) echo "Usage: bin/test [-c|--clean]" >&2; exit 2 ;;
+  esac
+done
+
+COMPILER_DIR="$(cd ../purust && pwd)"
+SPAGO_BIN="$COMPILER_DIR/node_modules/.bin/spago"
+if [ ! -x "$SPAGO_BIN" ]; then
+  printf 'Missing Spago dependency. Run npm install in %s.\n' "$COMPILER_DIR" >&2
+  exit 1
+fi
+if [ "$CLEAN" = 1 ]; then
+  echo "=== Recompiling purust ==="
+  (cd "$COMPILER_DIR" && npm run build)
+fi
+
+# Prefer the sibling TAST fork; PURS can select another build explicitly.
+if [ -n "${PURS:-}" ]; then
+  PURS_BIN="$(command -v "$PURS")"
+else
+  FORK_BUILDS=("$COMPILER_DIR"/../../purescript/.stack-work/dist/*/*/build/purs/purs)
+  if [ "${#FORK_BUILDS[@]}" = 1 ] && [ -x "${FORK_BUILDS[0]}" ]; then
+    PURS_BIN="${FORK_BUILDS[0]}"
+  else
+    PURS_BIN="$(command -v purs)"
+  fi
+fi
+export PATH="$(dirname "$PURS_BIN"):$PATH"
+
+# Clean this package only. Always regenerate its TAST and Rust output.
+rm -rf output
+if [ "$CLEAN" = 1 ]; then
+  rm -rf .spago .cache
+fi
+
+echo "=== Building TAST and generating Rust with spago ==="
+"$SPAGO_BIN" build
+node -e 'const fs = require("node:fs"); const m = JSON.parse(fs.readFileSync("output/Test.Main/corefn.json", "utf8")); if (!Array.isArray(m.dataDecls)) { console.error("A TAST-enabled PureScript fork is required; set PURS to its executable."); process.exit(1); }'
+
+echo "=== Compiling Rust FFI and tests ==="
+cargo build --manifest-path output/purust_output/Cargo.toml
+
+echo "=== Running AVar tests ==="
+BINARY="output/purust_output/target/debug/purust_output"
+status=0
+"$BINARY" > output/actual.stdout 2> output/actual.stderr || status=$?
+cat output/actual.stdout
+if [ "$status" -ne 0 ] || [ -s output/actual.stderr ]; then
+  cat output/actual.stderr >&2
+  echo "[FAILED] AVar tests exited with status $status" >&2
+  exit 1
+fi
+diff -u test/expected.stdout output/actual.stdout
+echo "=== Checking cancellation cleanup and real concurrent AVar use ==="
+mkdir -p output/purust_output/Purs_Effect_AVar/tests
+cp test/ffi.rs output/purust_output/Purs_Effect_AVar/tests/ffi.rs
+cargo test --manifest-path output/purust_output/Purs_Effect_AVar/Cargo.toml --test ffi
+echo "Summary: 16 original Go tests, 8 additional checks and 2 Rust checks passed (8 threads, 1000 values)."

@@ -21,6 +21,32 @@ The quick start hasn't been written yet (contributions are welcome!). The quick 
 
 ## Documentation
 
+### Rust tests
+
+Run `bin/test -c` to rebuild the sibling `purust` compiler, clear this package's
+caches, generate fresh TAST and Rust with `--threaded`, and run the tests.
+`bin/test` skips the compiler rebuild. Both builds use the compiler's local
+Spago dependency. The sibling TAST-enabled PureScript fork is selected
+automatically; `PURS=/path/to/purs` overrides it.
+
+The suite preserves all 16 `gopurs-avar` tests unchanged. Eight additional
+PureScript checks cover status transitions, FIFO ordering, read broadcasts,
+reentrant callbacks, cancellation, kill, callback errors and effect replay.
+Two Rust tests check that cancellation releases captured callbacks and queued
+values, and that four producer threads and four consumer threads deliver
+1,000 distinct values exactly once. A barrier and recorded thread IDs ensure
+these are eight real worker threads; callbacks also access the same AVar
+again to check that its mutex is not held during notification.
+
+The Rust implementation stores state and FIFO queues behind a mutex.
+Cancellation removes the queued entry immediately. Reads do not consume the
+value; a selected take reserves it before notifications, preventing another
+thread from taking the same value. Notifications run in read, take, put
+order. Callback exceptions are rethrown after draining the pending work,
+leaving the AVar usable.
+
+### API
+
 `avar` documentation is stored in a few places:
 
 1. Module documentation is [published on Pursuit](https://pursuit.purescript.org/packages/purescript-avar).
